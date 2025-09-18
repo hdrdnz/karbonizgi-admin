@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
-import EditTestModal from './EditTestModal';
 import AddTestModal from './AddTestModal';
-import { fetchTests, addTest, updateTest, deleteTest, TestQuestion } from '../services/api';
+import { fetchTests, addTest, TestQuestion } from '../services/api';
+import axios from 'axios';
 
 const individualCategoryTranslations = {
   diet: 'Diyet',
@@ -20,11 +20,10 @@ const corporateCategoryTranslations = {
 
 const Tests = () => {
   const [testType, setTestType] = useState<'individual' | 'corporate'>('individual');
-  const [editingTest, setEditingTest] = useState<TestQuestion | null>(null);
-  const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [successMessage, setSuccessMessage] = useState<string | null>(null);
 
   const [selectedCategory, setSelectedCategory] = useState<string>('diet');
 
@@ -58,38 +57,36 @@ const Tests = () => {
   const categoryTranslations = testType === 'individual' ? individualCategoryTranslations : corporateCategoryTranslations;
   const filteredTests = tests[selectedCategory] || [];
 
-  const handleEditClick = (test: TestQuestion) => {
-    setEditingTest(test);
-    setIsEditModalOpen(true);
-  };
-
-  const handleEditSave = async (updatedTest: TestQuestion) => {
-    try {
-      await updateTest(testType === 'individual' ? 'person' : 'company', updatedTest);
-      await loadTests();
-      setIsEditModalOpen(false);
-      setEditingTest(null);
-    } catch (err) {
-      setError('Test güncellenirken bir hata oluştu');
-      console.error(err);
-    }
-  };
-
-  const handleAddSave = async (newTest: TestQuestion) => {
-    try {
-      await addTest(testType === 'individual' ? 'person' : 'company', newTest);
+  const handleAddSave = async (newTest: TestQuestion, category: string) => {
+    const result = await addTest(testType === 'individual' ? 'person' : 'company', category, newTest);
+    if (result) {
+      setSuccessMessage('Test başarıyla eklendi!');
       await loadTests();
       setIsAddModalOpen(false);
-    } catch (err) {
-      setError('Test eklenirken bir hata oluştu');
-      console.error(err);
+      setTimeout(() => setSuccessMessage(null), 3000);
+    } else {
+      alert('Test eklenirken bir hata oluştu!');
     }
   };
 
   const handleDelete = async (testKey: string) => {
     if (window.confirm('Bu testi silmek istediğinizden emin misiniz?')) {
       try {
-        await deleteTest(testType === 'individual' ? 'person' : 'company', testKey);
+        const token = localStorage.getItem('admin_token');
+        const params = new URLSearchParams();
+        params.append('question_type', testType === 'individual' ? 'person' : 'company');
+        params.append('question_key', testKey);
+        params.append('category', selectedCategory);
+        const headers = {
+          'X-Admin-Token': import.meta.env.VITE_X_ADMIN_TOKEN,
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+          'Content-Type': 'application/x-www-form-urlencoded',
+        };
+        const response = await axios.post(`${import.meta.env.VITE_BASE_URL}/delete-test`, params, { headers });
+        if (response.status === 200) {
+          setSuccessMessage('Test başarıyla silindi!');
+          setTimeout(() => setSuccessMessage(null), 3000);
+        }
         await loadTests();
       } catch (err) {
         setError('Test silinirken bir hata oluştu');
@@ -252,32 +249,21 @@ const Tests = () => {
                   </td>
                   <td style={{ padding: '1rem' }}>
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-                      {Object.entries(test.options).map(([key, option]) => (
-                        <div key={key} style={{
-                          color: option.emission <= 0 ? '#059669' : '#DC2626',
-                          fontSize: '0.875rem'
-                        }}>
-                          {option.emission > 0 ? '+' : ''}{option.emission}
-                        </div>
-                      ))}
+                      {Object.entries(test.options).map(([key, option]) => {
+                        const emissionValue = parseInt(option.emission, 10);
+                        return (
+                          <div key={key} style={{
+                            color: emissionValue <= 0 ? '#059669' : '#DC2626',
+                            fontSize: '0.875rem'
+                          }}>
+                            {emissionValue > 0 ? '+' : ''}{option.emission}
+                          </div>
+                        );
+                      })}
                     </div>
                   </td>
                   <td style={{ padding: '1rem' }}>
                     <div style={{ display: 'flex', gap: '0.5rem' }}>
-                      <button
-                        onClick={() => handleEditClick(test)}
-                        style={{
-                          padding: '0.5rem 1rem',
-                          borderRadius: '0.375rem',
-                          border: 'none',
-                          backgroundColor: '#2D3B2D',
-                          color: 'white',
-                          cursor: 'pointer',
-                          fontSize: '0.875rem'
-                        }}
-                      >
-                        Düzenle
-                      </button>
                       <button
                         onClick={() => handleDelete(test.key)}
                         style={{
@@ -301,17 +287,6 @@ const Tests = () => {
         </div>
       )}
 
-      {/* Düzenleme Modalı */}
-      <EditTestModal
-        test={editingTest}
-        isOpen={isEditModalOpen}
-        onClose={() => {
-          setIsEditModalOpen(false);
-          setEditingTest(null);
-        }}
-        onSave={handleEditSave}
-      />
-
       {/* Yeni Test Ekleme Modalı */}
       <AddTestModal
         isOpen={isAddModalOpen}
@@ -319,6 +294,22 @@ const Tests = () => {
         onSave={handleAddSave}
         testType={testType}
       />
+
+      {successMessage && (
+        <div style={{
+          position: 'fixed',
+          top: '1rem',
+          right: '1rem',
+          background: '#4CAF50',
+          color: 'white',
+          padding: '1rem',
+          borderRadius: '0.5rem',
+          boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
+          zIndex: 2000,
+        }}>
+          {successMessage}
+        </div>
+      )}
     </div>
   );
 };

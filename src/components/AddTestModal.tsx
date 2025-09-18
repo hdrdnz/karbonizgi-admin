@@ -3,39 +3,39 @@ import { TestQuestion } from '../services/api';
 interface AddTestModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onSave: (test: TestQuestion) => void;
+  onSave: (test: TestQuestion, category: string) => void;
   testType: 'individual' | 'corporate';
 }
 
 const AddTestModal = ({ isOpen, onClose, onSave, testType }: AddTestModalProps) => {
-  // Bireysel test kategorileri
   const individualCategories = [
-    'Enerji',
-    'Ulaşım',
-    'Diyet',
-    'Geri Dönüşüm',
-    'Alışveriş',
-    'Ev'
+    { key: 'energy', label: 'Enerji' },
+    { key: 'transport', label: 'Ulaşım' },
+    { key: 'diet', label: 'Diyet' },
+    { key: 'waste_recycling', label: 'Geri Dönüşüm' },
+    { key: 'shopping', label: 'Alışveriş' },
+    { key: 'housing', label: 'Ev' },
   ];
 
   // Kurumsal test kategorileri
   const corporateCategories = [
-    'Endüstri',
-    'Enerji & Ulaşım',
-    'Hizmet & Ticaret',
-    'Atık Yönetimi'
+    { key: 'industry', label: 'Endüstri' },
+    { key: 'energy_transportation', label: 'Enerji & Ulaşım' },
+    { key: 'service_trade', label: 'Hizmet & Ticaret' },
+    { key: 'public_waste_management', label: 'Atık Yönetimi' },
   ];
 
   const categories = testType === 'individual' ? individualCategories : corporateCategories;
 
+  const [category, setCategory] = useState(categories[0].key);
   const [newTest, setNewTest] = useState<TestQuestion>({
     key: '',
     question: '',
     options: {
-      A: { text: '', emission: 0 },
-      B: { text: '', emission: 0 },
-      C: { text: '', emission: 0 },
-      D: { text: '', emission: 0 },
+      A: { text: '', emission: '' },
+      B: { text: '', emission: '' },
+      C: { text: '', emission: '' },
+      D: { text: '', emission: '' },
     }
   });
 
@@ -43,32 +43,37 @@ const AddTestModal = ({ isOpen, onClose, onSave, testType }: AddTestModalProps) 
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    onSave(newTest);
+    onSave(newTest, category);
     // Formu sıfırla
     setNewTest({
       key: '',
       question: '',
       options: {
-        A: { text: '', emission: 0 },
-        B: { text: '', emission: 0 },
-        C: { text: '', emission: 0 },
-        D: { text: '', emission: 0 },
+        A: { text: '', emission: '' },
+        B: { text: '', emission: '' },
+        C: { text: '', emission: '' },
+        D: { text: '', emission: '' },
       }
     });
+    setCategory(categories[0].key);
   };
 
   const handleOptionChange = (
     optionKey: string,
     field: 'text' | 'emission',
-    value: string | number
+    value: string
   ) => {
+    if (field === 'emission') {
+      // Sadece rakam ve eksi işareti kabul et
+      if (!/^[-]?\d*$/.test(value)) return;
+    }
     setNewTest((prev: TestQuestion) => ({
       ...prev,
       options: {
         ...prev.options,
         [optionKey]: {
           ...prev.options[optionKey],
-          [field]: field === 'emission' ? Number(value) : value
+          [field]: value
         }
       }
     }));
@@ -122,8 +127,8 @@ const AddTestModal = ({ isOpen, onClose, onSave, testType }: AddTestModalProps) 
             </label>
             <select
               id="category"
-              value={newTest.key}
-              onChange={(e) => setNewTest(prev => ({ ...prev, category: e.target.value }))}
+              value={category}
+              onChange={(e) => setCategory(e.target.value)}
               style={{
                 width: '100%',
                 padding: '0.75rem',
@@ -134,9 +139,9 @@ const AddTestModal = ({ isOpen, onClose, onSave, testType }: AddTestModalProps) 
               }}
               required
             >
-              {categories.map((category) => (
-                <option key={category} value={category}>
-                  {category}
+              {categories.map((cat) => (
+                <option key={cat.key} value={cat.key}>
+                  {cat.label}
                 </option>
               ))}
             </select>
@@ -164,7 +169,7 @@ const AddTestModal = ({ isOpen, onClose, onSave, testType }: AddTestModalProps) 
               placeholder="Sorunuzu buraya yazın"
               required
               style={{
-                width: '100%',
+                width: '95%',
                 padding: '0.75rem',
                 borderRadius: '0.375rem',
                 border: '1px solid #E5E7EB',
@@ -191,10 +196,11 @@ const AddTestModal = ({ isOpen, onClose, onSave, testType }: AddTestModalProps) 
               type="text"
               id="key"
               value={newTest.key}
+              onChange={e => setNewTest((prev: TestQuestion) => ({ ...prev, key: e.target.value }))}
               placeholder="Benzersiz anahtar (ör: meat_consumption)"
               required
               style={{
-                width: '100%',
+                width: '95%',
                 padding: '0.75rem',
                 borderRadius: '0.375rem',
                 border: '1px solid #E5E7EB',
@@ -241,7 +247,7 @@ const AddTestModal = ({ isOpen, onClose, onSave, testType }: AddTestModalProps) 
                     placeholder={`${key} seçeneğinin metnini yazın`}
                     required
                     style={{
-                      width: '100%',
+                      width: '95%',
                       padding: '0.75rem',
                       borderRadius: '0.375rem',
                       border: '1px solid #E5E7EB',
@@ -263,13 +269,15 @@ const AddTestModal = ({ isOpen, onClose, onSave, testType }: AddTestModalProps) 
                     Emisyon Değeri
                   </label>
                   <input
-                    type="number"
+                    type="text"
                     id={`option-${key}-emission`}
                     value={option.emission}
                     onChange={(e) => handleOptionChange(key, 'emission', e.target.value)}
                     required
+                    inputMode="numeric"
+                    pattern="^-?\d*$"
                     style={{
-                      width: '100%',
+                      width: '95%',
                       padding: '0.75rem',
                       borderRadius: '0.375rem',
                       border: '1px solid #E5E7EB',

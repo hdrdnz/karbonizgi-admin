@@ -2,9 +2,9 @@ import axios, { AxiosResponse } from 'axios';
 
 const BASE_URL = import.meta.env.VITE_BASE_URL;
 const ADMIN_TOKEN = import.meta.env.VITE_X_ADMIN_TOKEN;
-console.log("BASE_URL:",BASE_URL)
+console.log("BASE_URL:", BASE_URL)
 
-// Axios instance oluştur
+
 const api = axios.create({
   baseURL: BASE_URL,
   headers: {
@@ -14,10 +14,9 @@ const api = axios.create({
   }
 });
 
-// API yanıt tipleri
 export interface TestOption {
   text: string;
-  emission: number;
+  emission: string;
 }
 
 export interface TestQuestion {
@@ -72,7 +71,6 @@ export interface UserInfo {
   UserType: string;
 }
 
-// Testleri getir
 export const fetchTests = async (type: 'person' | 'company'): Promise<TestResponse> => {
   try {
     const response: AxiosResponse<TestResponse> = await api.get('/test', {
@@ -100,24 +98,33 @@ export const fetchTests = async (type: 'person' | 'company'): Promise<TestRespon
   }
 };
 
-// Yeni test ekle
-export const addTest = async (type: 'person' | 'company', test: TestQuestion): Promise<void> => {
+export const addTest = async (type: 'person' | 'company', category: string, test: TestQuestion): Promise<boolean> => {
   try {
-    const response = await api.post('/test', test, {
-      params: { type },
-      headers: getAuthHeaders(),
+    const options = Object.fromEntries(
+      Object.entries(test.options).map(([key, opt]) => [key.toUpperCase(), { text: opt.text, emission: parseFloat(opt.emission) }])
+    );
+    const body = {
+      key: test.key,
+      question: test.question,
+      options
+    };
+    const response = await axios.post(`${BASE_URL}/add-test/${type}/${category}`, body, {
+      headers: {
+        ...getAuthHeaders(),
+        'Content-Type': 'application/json',
+      },
     });
     console.log('Test Ekleme Başarılı:', response.data);
+    return response.status === 200;
   } catch (error) {
     if (axios.isAxiosError(error)) {
       console.error('Test Ekleme Hatası:', error.response?.data);
-      throw new Error(`Test eklenemedi: ${error.message}`);
+      return false;
     }
-    throw error;
+    return false;
   }
 };
 
-// Test güncelle
 export const updateTest = async (type: 'person' | 'company', test: TestQuestion): Promise<void> => {
   try {
     const response = await api.put('/test', test, {
@@ -134,7 +141,6 @@ export const updateTest = async (type: 'person' | 'company', test: TestQuestion)
   }
 };
 
-// Test sil
 export const deleteTest = async (type: 'person' | 'company', testKey: string): Promise<void> => {
   try {
     const response = await api.delete('/test', {
@@ -150,8 +156,6 @@ export const deleteTest = async (type: 'person' | 'company', testKey: string): P
     throw error;
   }
 };
-
-// Login fonksiyonu
 export const login = async (email: string, password: string) => {
   const response = await axios.post(`${BASE_URL}/login`, {
     email,
@@ -169,7 +173,6 @@ export const login = async (email: string, password: string) => {
   return response.data;
 };
 
-// Token'ı header'a ekleyen yardımcı fonksiyon
 const getAuthHeaders = () => {
   const token = localStorage.getItem('admin_token');
   return {
@@ -221,4 +224,61 @@ export const updateUser = async (user: UserInfo) => {
     headers: getAuthHeaders()
   });
   return response.data;
+};
+
+export const deleteComment = async (question: string, questionType: 'person' | 'company') => {
+  const params = new URLSearchParams();
+  params.append('question', question);
+  params.append('question_type', questionType);
+  const response = await axios.post(`${BASE_URL}/delete-comment`, params, {
+    headers: {
+      ...getAuthHeaders(),
+      'Content-Type': 'application/x-www-form-urlencoded',
+    },
+  });
+  return response.data;
+};
+
+export const updateAdmin = async (adminId: number, adminData: { name: string; last_name: string; email: string }) => {
+  try {
+    const token = localStorage.getItem('admin_token');
+    const response = await api.post(`${BASE_URL}/update-admin/${adminId}`, adminData, {
+      headers: {
+        'Content-Type': 'application/json',
+        'X-Admin-Token': ADMIN_TOKEN,
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      },
+    });
+    if (response.status === 200 && response.data.status === 'success') {
+      return { success: true, message: response.data.message || 'Admin bilgileri başarıyla güncellendi!' };
+    } else {
+      return { success: false, message: response.data.message || 'Admin bilgileri güncellenirken bir hata oluştu.' };
+    }
+  } catch (error: any) {
+    return { success: false, message: error.response?.data?.message || 'Admin bilgileri güncellenirken bir hata oluştu.' };
+  }
+};
+
+export const fetchAdminInfo = async () => {
+  // ... existing code ...
+};
+
+export const resetAdminPassword = async (adminId: number, password: string) => {
+  try {
+    const token = localStorage.getItem('admin_token');
+    const response = await api.post(`${BASE_URL}/reset-admin/${adminId}`, { password }, {
+      headers: {
+        'Content-Type': 'application/x-www-form-urlencoded',
+        'X-Admin-Token': ADMIN_TOKEN,
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      },
+    });
+    if (response.status === 200 && response.data.status === 'success') {
+      return { success: true, message: response.data.message || 'Şifre başarıyla sıfırlandı!' };
+    } else {
+      return { success: false, message: response.data.message || 'Şifre sıfırlanırken bir hata oluştu.' };
+    }
+  } catch (error: any) {
+    return { success: false, message: error.response?.data?.message || 'Şifre sıfırlanırken bir hata oluştu.' };
+  }
 }; 

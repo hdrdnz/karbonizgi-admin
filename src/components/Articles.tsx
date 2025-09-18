@@ -1,8 +1,8 @@
 import { useState, useEffect } from 'react';
 import AddArticleModal from './AddArticleModal.tsx';
-import EditArticleModal from './EditArticleModal';
 import { fetchArticles } from '../services/api.ts';
 import { Article } from '../services/api.ts';
+import axios from 'axios';
 
 export interface ArticleSection {
   subtitle: string;
@@ -16,8 +16,10 @@ const Articles = () => {
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [editingIndex, setEditingIndex] = useState<number | null>(null);
   const [selectedIndex, setSelectedIndex] = useState<number | null>(null);
+  const [successMessage, setSuccessMessage] = useState<string | null>(null);
+
+  const BASE_URL = import.meta.env.VITE_BASE_URL;
 
   useEffect(() => {
     const load = async () => {
@@ -95,48 +97,73 @@ const Articles = () => {
 
   // Detay görünümü
   const article = articles[selectedIndex];
+
+  const handleDeleteArticle = async () => {
+    try {
+      const token = localStorage.getItem('admin_token');
+      const headers = {
+        'X-Admin-Token': import.meta.env.VITE_X_ADMIN_TOKEN,
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        'Content-Type': 'application/x-www-form-urlencoded',
+      };
+      const params = new URLSearchParams();
+      params.append('title', article.title);
+      await axios.post(`${BASE_URL}/delete-data`, params, { headers });
+      setSuccessMessage('Makale başarıyla silindi!');
+      setTimeout(() => setSuccessMessage(null), 3000);
+      setArticles(prev => prev.filter((_, idx) => idx !== selectedIndex));
+      setSelectedIndex(null);
+    } catch (err: any) {
+      alert('Makale silinirken hata oluştu!');
+    }
+  };
+
   return (
-    <div style={{ maxWidth: 900, margin: '0 auto', padding: '2rem' }}>
+    <div style={{ maxWidth: 600, margin: '0 auto', padding: '2rem' }}>
+      {successMessage && (
+        <div style={{
+          position: 'fixed',
+          top: '1rem',
+          right: '1rem',
+          background: '#4CAF50',
+          color: 'white',
+          padding: '1rem',
+          borderRadius: '0.5rem',
+          boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
+          zIndex: 2000,
+        }}>
+          {successMessage}
+        </div>
+      )}
+      <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: '0.5rem' }}>
+        <button
+          onClick={handleDeleteArticle}
+          style={{ padding: '0.75rem 1.5rem', borderRadius: 6, border: 'none', background: '#DC2626', color: 'white', cursor: 'pointer', fontWeight: 500 }}
+        >
+          Sil
+        </button>
+      </div>
       <button
         onClick={() => setSelectedIndex(null)}
-        style={{ marginBottom: 24, background: '#E5E7EB', color: '#14532D', border: 'none', borderRadius: 6, padding: '0.5rem 1.5rem', fontWeight: 500, cursor: 'pointer' }}
+        style={{ marginBottom: '1rem', background: 'none', border: 'none', color: '#2D3B2D', cursor: 'pointer', fontWeight: 500 }}
       >
         ← Geri
       </button>
-      <button
-        onClick={() => setEditingIndex(selectedIndex)}
-        style={{ float: 'right', background: '#166534', color: 'white', border: 'none', borderRadius: 4, padding: '6px 16px', cursor: 'pointer', fontWeight: 500 }}
-      >
-        Düzenle
-      </button>
-      <h2 style={{ color: '#14532D', fontSize: '1.5rem', fontWeight: 600 }}>{article.title}</h2>
-      <img src={article.image} alt={article.title} style={{ width: '100%', maxHeight: 320, objectFit: 'contain', borderRadius: 8, margin: '1rem 0' }} />
-      {article.sections.map((section, sidx) => (
-        <div key={sidx} style={{ marginBottom: 24 }}>
-          <h3 style={{ color: '#166534', fontSize: '1.1rem', fontWeight: 500, marginBottom: 8 }}>{section.subtitle}</h3>
-          {section.type === 'paragraph' && (
-            <p style={{ color: '#374151', fontSize: '1rem', lineHeight: 1.7 }}>{section.content}</p>
-          )}
-          {section.type === 'list' && section.items && (
-            <ul style={{ paddingLeft: 24, color: '#374151', fontSize: '1rem', lineHeight: 1.7 }}>
-              {section.items.map((item, iidx) => (
-                <li key={iidx} style={{ marginBottom: 8 }}>
-                  <strong>{item.title}:</strong> {item.content}
-                </li>
+      <h2 style={{ color: '#14532D', fontSize: '2rem', fontWeight: 'bold', marginBottom: '1rem' }}>{article.title}</h2>
+      <img src={article.image} alt={article.title} style={{ width: '100%', borderRadius: 8, marginBottom: 16 }} />
+      {article.sections.map((section, idx) => (
+        <div key={idx} style={{ marginBottom: 16 }}>
+          <h4 style={{ color: '#166534', fontWeight: 600 }}>{section.subtitle}</h4>
+          {section.type === 'paragraph' && <p>{section.content}</p>}
+          {section.type === 'list' && Array.isArray(section.items) && (
+            <ul>
+              {section.items.map((item: any, iidx: number) => (
+                <li key={iidx}><b>{item.title}:</b> {item.content}</li>
               ))}
             </ul>
           )}
         </div>
       ))}
-      <EditArticleModal
-        isOpen={editingIndex === selectedIndex}
-        onClose={() => setEditingIndex(null)}
-        article={article}
-        onSave={updated => {
-          setArticles(prev => prev.map((a, i) => i === selectedIndex ? updated : a));
-          setEditingIndex(null);
-        }}
-      />
     </div>
   );
 };

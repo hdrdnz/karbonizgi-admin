@@ -9,6 +9,7 @@ import Login from './components/Login'
 import { JSX, useState } from 'react'
 import { login } from './services/api'
 import ComingSoon from './components/ComingSoon.tsx'
+import Privacy from './components/Privacy'
 
 function RequireAuth({ children }: { children: JSX.Element }) {
   const token = localStorage.getItem('admin_token');
@@ -46,8 +47,8 @@ function App() {
   return (
     <Router>
       <Routes>
-        {}
         <Route path="/" element={<ComingSoon />} />
+        <Route path="/privacy" element={<Privacy />} />
         <Route
           path="/admin/login"
           element={
@@ -73,7 +74,6 @@ function App() {
             </RequireAuth>
           }
         />
-        {}
         <Route path="*" element={<ComingSoon />} />
       </Routes>
     </Router>

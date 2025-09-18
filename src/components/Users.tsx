@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { fetchUsers, User, updateUser, UserInfo } from '../services/api';
+import axios from 'axios';
 
 const tabStyle = (active: boolean) => ({
   padding: '0.75rem 2rem',
@@ -15,6 +16,8 @@ const tabStyle = (active: boolean) => ({
   transition: 'all 0.2s',
 });
 
+const BASE_URL = import.meta.env.VITE_BASE_URL;
+
 const Users = () => {
   const [tab, setTab] = useState<'bireysel' | 'kurumsal'>('bireysel');
   const [users, setUsers] = useState<User[]>([]);
@@ -28,6 +31,7 @@ const Users = () => {
   const [addForm, setAddForm] = useState<Partial<User & { password: string }>>({});
   const [addPasswordVisible, setAddPasswordVisible] = useState(false);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
+  const [showResetPassword, setShowResetPassword] = useState(false);
 
   useEffect(() => {
     const loadUsers = async () => {
@@ -56,6 +60,10 @@ const Users = () => {
 
   const handleEditSave = async () => {
     if (!editingUser) return;
+    if (!editForm.Firstname || !editForm.Lastname || !editForm.Email || !editForm.Username || (tab === 'kurumsal' && !editForm.CompanyName)) {
+      alert('Lütfen tüm zorunlu alanları doldurun.');
+      return;
+    }
     const userInfo: UserInfo = {
       UserId: editingUser.Id,
       Email: editForm.Email || '',
@@ -69,8 +77,12 @@ const Users = () => {
       setUsers(prev => prev.map(u => u.Id === editingUser.Id ? { ...u, ...editForm } : u));
       setSuccessMessage('Kullanıcı başarıyla güncellendi!');
       setTimeout(() => setSuccessMessage(null), 3000);
-    } catch (err) {
-      // Hata yönetimi eklenebilir
+    } catch (err: any) {
+      if (err.response && err.response.data && err.response.data.message) {
+        alert(err.response.data.message);
+      } else {
+        alert('Kullanıcı güncellenirken hata oluştu!');
+      }
     }
     setEditingUser(null);
     setEditForm({});
@@ -80,26 +92,60 @@ const Users = () => {
     setAddForm(prev => ({ ...prev, [field]: value }));
   };
 
-  const handleAddSave = () => {
-    // Burada backend'e ekleme işlemi yapılabilir
-    setUsers(prev => [
-      {
-        Id: Math.max(0, ...prev.map(u => u.Id)) + 1,
-        Email: addForm.Email || '',
-        Firstname: addForm.Firstname || '',
-        Lastname: addForm.Lastname || '',
-        Password: addForm.password || '',
-        Username: addForm.Username || '',
-        UserType: tab === 'bireysel' ? 'person' : 'company',
-        CompanyName: tab === 'kurumsal' ? addForm.CompanyName || '' : undefined,
-        CreatedAt: new Date().toISOString(),
-        UpdatedAt: new Date().toISOString(),
-      },
-      ...prev
-    ]);
-    setIsAddModalOpen(false);
-    setAddForm({});
-    setAddPasswordVisible(false);
+  const handleAddSave = async () => {
+    try {
+      const token = localStorage.getItem('admin_token');
+      const headers = {
+        'X-Admin-Token': import.meta.env.VITE_X_ADMIN_TOKEN,
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        'Content-Type': 'application/json',
+      };
+      const body = {
+        email: addForm.Email || '',
+        first_name: addForm.Firstname || '',
+        last_name: addForm.Lastname || '',
+        user_name: addForm.Username || '',
+        user_type: addForm.UserType === 'person' ? 'person' : 'company',
+        password: addForm.password || '',
+        company_name: addForm.UserType === 'company' ? addForm.CompanyName || '' : '',
+      };
+      await axios.post(`${BASE_URL}/add-user`, body, { headers });
+      setSuccessMessage('Kullanıcı başarıyla eklendi!');
+      setTimeout(() => setSuccessMessage(null), 3000);
+      setIsAddModalOpen(false);
+      setAddForm({});
+      setAddPasswordVisible(false);
+      // Yeni kullanıcıyı tekrar fetch etmek için kullanıcıları yeniden yükleyebilirsiniz
+      const data = await fetchUsers(tab === 'bireysel' ? 'person' : 'company');
+      setUsers(data);
+    } catch (err: any) {
+      if (err.response && err.response.data && err.response.data.message) {
+        alert(err.response.data.message);
+      } else {
+        alert('Kullanıcı eklenirken hata oluştu!');
+      }
+    }
+  };
+
+  const handleDeleteUser = async (userId: number) => {
+    try {
+      const token = localStorage.getItem('admin_token');
+      const headers = {
+        'X-Admin-Token': import.meta.env.VITE_X_ADMIN_TOKEN,
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        'Content-Type': 'application/x-www-form-urlencoded',
+      };
+      await axios.post(`${BASE_URL}/delete-user`, { userId }, { headers });
+      setUsers(prev => prev.filter(u => u.Id !== userId));
+      setSuccessMessage('Kullanıcı başarıyla silindi!');
+      setTimeout(() => setSuccessMessage(null), 3000);
+    } catch (err: any) {
+      if (err.response && err.response.data && err.response.data.message) {
+        alert(err.response.data.message);
+      } else {
+        alert('Kullanıcı silinirken hata oluştu!');
+      }
+    }
   };
 
   return (
@@ -120,7 +166,7 @@ const Users = () => {
             fontSize: '1rem',
             boxShadow: '0 2px 4px rgba(0,0,0,0.08)'
           }}
-          onClick={() => setIsAddModalOpen(true)}
+          onClick={() => { setAddForm({ UserType: 'person' }); setIsAddModalOpen(true); }}
         >
           + Kullanıcı Ekle
         </button>
@@ -164,6 +210,7 @@ const Users = () => {
                       fontSize: '0.875rem',
                     }} onClick={() => handleEditClick(user)}>Düzenle</button>
                     <button style={{
+                      marginRight: '0.5rem',
                       padding: '0.5rem 1rem',
                       borderRadius: '0.375rem',
                       border: 'none',
@@ -172,6 +219,15 @@ const Users = () => {
                       cursor: 'pointer',
                       fontSize: '0.875rem',
                     }} onClick={() => { setResetUser(user); setNewPassword(''); }}>Şifre Sıfırla</button>
+                    <button style={{
+                      padding: '0.5rem 1rem',
+                      borderRadius: '0.375rem',
+                      border: 'none',
+                      backgroundColor: '#B91C1C',
+                      color: 'white',
+                      cursor: 'pointer',
+                      fontSize: '0.875rem',
+                    }} onClick={() => handleDeleteUser(user.Id)}>Sil</button>
                   </td>
                 </tr>
               ))}
@@ -303,13 +359,39 @@ const Users = () => {
           }}>
             <h3 style={{ marginBottom: '1rem', color: '#2D3B2D' }}>Şifre Sıfırla</h3>
             <label style={{ color: '#2D3B2D', fontWeight: 500, marginBottom: '0.25rem', display: 'block' }}>Yeni Şifre</label>
-            <input
-              type="password"
-              value={newPassword}
-              onChange={e => setNewPassword(e.target.value)}
-              placeholder="Yeni şifre"
-              style={{ width: '100%', padding: '0.75rem', marginBottom: '1rem', borderRadius: '0.375rem', border: '1px solid #E5E7EB' }}
-            />
+            <div style={{ position: 'relative', marginBottom: '1rem' }}>
+              <input
+                type={showResetPassword ? 'text' : 'password'}
+                value={newPassword}
+                onChange={e => setNewPassword(e.target.value)}
+                placeholder="Yeni şifre"
+                style={{
+                  width: '100%',
+                  padding: '0.75rem 2.5rem 0.75rem 0.75rem',
+                  borderRadius: '0.375rem',
+                  border: '1px solid #E5E7EB',
+                  fontSize: '1rem',
+                  boxSizing: 'border-box'
+                }}
+              />
+              <span
+                onClick={() => setShowResetPassword(v => !v)}
+                style={{
+                  position: 'absolute',
+                  right: '1rem',
+                  top: '50%',
+                  transform: 'translateY(-50%)',
+                  cursor: 'pointer',
+                  color: '#2D3B2D',
+                  fontSize: '1.5rem',
+                  userSelect: 'none',
+                  lineHeight: 1
+                }}
+                title={showResetPassword ? 'Şifreyi Gizle' : 'Şifreyi Göster'}
+              >
+                {showResetPassword ? '🔓' : '🔒'}
+              </span>
+            </div>
             <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '1rem' }}>
               <button
                 onClick={() => { setResetUser(null); setNewPassword(''); }}
@@ -324,7 +406,32 @@ const Users = () => {
                 İptal
               </button>
               <button
-                onClick={() => { setResetUser(null); setNewPassword(''); /* Şifre sıfırlama işlemi burada yapılabilir */ }}
+                onClick={async () => {
+                  try {
+                    const token = localStorage.getItem('admin_token');
+                    const params = new URLSearchParams();
+                    params.append('userId', String(resetUser?.Id));
+                    params.append('password', newPassword);
+                    const headers = {
+                      'X-Admin-Token': import.meta.env.VITE_X_ADMIN_TOKEN,
+                      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+                      'Content-Type': 'application/x-www-form-urlencoded',
+                    };
+                    const response = await axios.post(`${BASE_URL}/reset-password`, params, { headers });
+                    if (response.status === 200) {
+                      setSuccessMessage('Şifre başarıyla sıfırlandı!');
+                      setTimeout(() => setSuccessMessage(null), 3000);
+                    }
+                  } catch (err: any) {
+                    if (err.response && err.response.data && err.response.data.message) {
+                      alert(err.response.data.message);
+                    } else {
+                      alert('Şifre sıfırlanırken hata oluştu!');
+                    }
+                  }
+                  setResetUser(null);
+                  setNewPassword('');
+                }}
                 style={{
                   padding: '0.75rem 1.5rem',
                   borderRadius: '0.375rem',
@@ -361,6 +468,33 @@ const Users = () => {
             width: '400px',
           }}>
             <h3 style={{ marginBottom: '1rem', color: '#2D3B2D' }}>Kullanıcı Ekle</h3>
+            <div style={{ marginBottom: '1rem' }}>
+              <label style={{ color: '#2D3B2D', fontWeight: 500, marginBottom: '0.25rem', display: 'block' }}>Kullanıcı Tipi:</label>
+              <div style={{ display: 'flex', gap: '1rem' }}>
+                <label style={{ display: 'flex', alignItems: 'center', cursor: 'pointer' }}>
+                  <input 
+                    type="radio" 
+                    name="userType" 
+                    value="person" 
+                    checked={addForm.UserType === 'person'} 
+                    onChange={() => handleAddChange('UserType', 'person')} 
+                    style={{ marginRight: '0.5rem' }} 
+                  />
+                  Bireysel
+                </label>
+                <label style={{ display: 'flex', alignItems: 'center', cursor: 'pointer' }}>
+                  <input 
+                    type="radio" 
+                    name="userType" 
+                    value="company" 
+                    checked={addForm.UserType === 'company'} 
+                    onChange={() => handleAddChange('UserType', 'company')} 
+                    style={{ marginRight: '0.5rem' }} 
+                  />
+                  Kurumsal
+                </label>
+              </div>
+            </div>
             <label style={{ color: '#2D3B2D', fontWeight: 500, marginBottom: '0.25rem', display: 'block' }}>Ad</label>
             <input
               type="text"
@@ -393,7 +527,7 @@ const Users = () => {
               placeholder="Kullanıcı Adı"
               style={{ width: '100%', padding: '0.75rem', marginBottom: '1rem', borderRadius: '0.375rem', border: '1px solid #E5E7EB' }}
             />
-            {tab === 'kurumsal' && (
+            {addForm.UserType === 'company' && (
               <>
                 <label style={{ color: '#2D3B2D', fontWeight: 500, marginBottom: '0.25rem', display: 'block' }}>Şirket Adı</label>
                 <input
@@ -428,12 +562,12 @@ const Users = () => {
                 }}
                 title={addPasswordVisible ? 'Şifreyi Gizle' : 'Şifreyi Göster'}
               >
-                {addPasswordVisible ? '👁️' : '👁️‍🗨️'}
+                {addPasswordVisible ? '🔓' : '🔒'}
               </span>
             </div>
             <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '1rem' }}>
               <button
-                onClick={() => { setIsAddModalOpen(false); setAddForm({}); setAddPasswordVisible(false); }}
+                onClick={() => { setIsAddModalOpen(false); setAddForm({ UserType: 'person' }); setAddPasswordVisible(false); }}
                 style={{
                   padding: '0.75rem 1.5rem',
                   borderRadius: '0.375rem',

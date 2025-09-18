@@ -1,91 +1,63 @@
-const Home = () => {
-  const stats = [
-    { label: 'Toplam Test', value: '156', icon: '📋' },
-    { label: 'Aktif Kullanıcı', value: '50', icon: '👥' },
-    { label: 'Toplam Makale', value: '20', icon: '📚' },
-  ];
+import { useEffect, useState } from 'react';
+import axios from 'axios';
 
-  const recentActivities = [
-    { type: 'test', text: 'Yeni karbon ayak izi testi eklendi', time: '2 saat önce' },
-    { type: 'user', text: 'Yeni kullanıcı kaydı: Ahmet Yılmaz', time: '4 saat önce' },
-    { type: 'article', text: 'Yeni makale yayınlandı: Sürdürülebilir Yaşam', time: '6 saat önce' },
-  ];
+const BASE_URL = import.meta.env.VITE_BASE_URL;
+const ADMIN_TOKEN = import.meta.env.VITE_X_ADMIN_TOKEN;
+
+const Home = () => {
+  const [stats, setStats] = useState({
+    User: 0,
+    Makale: 0,
+    Person: 0,
+    Company: 0
+  });
+  const getAuthHeaders = () => {
+    const token = localStorage.getItem('admin_token');
+    return {
+      'X-Admin-Token': ADMIN_TOKEN,
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    };
+  };
+
+  useEffect(() => {
+    const fetchStats = async () => {
+      try {
+        const response = await axios.get(`${BASE_URL}/total`, {
+          headers: getAuthHeaders()
+        });
+        console.log("response:",response)
+        if (response.data.status === 'success') {
+          setStats(response.data.data);
+        }
+      } catch (error) {
+        console.error('Veriler alınırken hata oluştu:', error);
+      }
+    };
+    fetchStats();
+  }, []);
 
   return (
-    <div>
-      {}
-      <div style={{
-        display: 'grid',
-        gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))',
-        gap: '1.5rem',
-        marginBottom: '2rem'
-      }}>
-        {stats.map((stat, index) => (
-          <div
-            key={index}
-            style={{
-              backgroundColor: '#F3F7F3',
-              padding: '1.5rem',
-              borderRadius: '0.5rem',
-              display: 'flex',
-              alignItems: 'center',
-              gap: '1rem'
-            }}
-          >
-            <span style={{ fontSize: '2rem' }}>{stat.icon}</span>
-            <div>
-              <p style={{
-                fontSize: '2rem',
-                fontWeight: 'bold',
-                color: '#2D3B2D',
-                marginBottom: '0.25rem'
-              }}>
-                {stat.value}
-              </p>
-              <p style={{ color: '#4B5563', fontSize: '0.875rem' }}>{stat.label}</p>
-            </div>
-          </div>
-        ))}
+    <div style={{ padding: '2rem' }}>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))', gap: '2rem' }}>
+        <div style={{ background: '#F3F7F3', padding: '2rem', borderRadius: '1rem', boxShadow: '0 2px 8px rgba(44, 62, 80, 0.07)' }}>
+          <h2 style={{ fontSize: '1.5rem', fontWeight: 'bold', marginBottom: '1rem', color: '#2D3B2D' }}>Toplam Kullanıcı 👥</h2>
+          <p style={{ fontSize: '2rem', fontWeight: 'bold', color: '#3E513E', textAlign: 'center' }}>{stats.User}</p>
+        </div>
+        <div style={{ background: '#F3F7F3', padding: '2rem', borderRadius: '1rem', boxShadow: '0 2px 8px rgba(44, 62, 80, 0.07)' }}>
+          <h2 style={{ fontSize: '1.5rem', fontWeight: 'bold', marginBottom: '1rem', color: '#2D3B2D' }}>Toplam Makale 📚</h2>
+          <p style={{ fontSize: '2rem', fontWeight: 'bold', color: '#3E513E', textAlign: 'center' }}>{stats.Makale}</p>
+        </div>
+        <div style={{ background: '#F3F7F3', padding: '2rem', borderRadius: '1rem', boxShadow: '0 2px 8px rgba(44, 62, 80, 0.07)' }}>
+          <h2 style={{ fontSize: '1.5rem', fontWeight: 'bold', marginBottom: '1rem', color: '#2D3B2D' }}>Bireysel Test 👤</h2>
+          <p style={{ fontSize: '2rem', fontWeight: 'bold', color: '#3E513E', textAlign: 'center' }}>{stats.Person}</p>
+        </div>
+        <div style={{ background: '#F3F7F3', padding: '2rem', borderRadius: '1rem', boxShadow: '0 2px 8px rgba(44, 62, 80, 0.07)' }}>
+          <h2 style={{ fontSize: '1.5rem', fontWeight: 'bold', marginBottom: '1rem', color: '#2D3B2D' }}>Kurumsal Test 🏢</h2>
+          <p style={{ fontSize: '2rem', fontWeight: 'bold', color: '#3E513E', textAlign: 'center' }}>{stats.Company}</p>
+        </div>
       </div>
 
       {/* Recent Activities */}
-      <div>
-        <h3 style={{
-          fontSize: '1.25rem',
-          fontWeight: '600',
-          color: '#2D3B2D',
-          marginBottom: '1rem'
-        }}>
-          Son Aktiviteler
-        </h3>
-        <div style={{
-          display: 'flex',
-          flexDirection: 'column',
-          gap: '1rem'
-        }}>
-          {recentActivities.map((activity, index) => (
-            <div
-              key={index}
-              style={{
-                padding: '1rem',
-                backgroundColor: '#F3F7F3',
-                borderRadius: '0.5rem',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'space-between'
-              }}
-            >
-              <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-                <span style={{ fontSize: '1.25rem' }}>
-                  {activity.type === 'test' ? '📋' : activity.type === 'user' ? '👤' : '📚'}
-                </span>
-                <p style={{ color: '#4B5563' }}>{activity.text}</p>
-              </div>
-              <span style={{ color: '#6B7280', fontSize: '0.875rem' }}>{activity.time}</span>
-            </div>
-          ))}
-        </div>
-      </div>
     </div>
   );
 };
